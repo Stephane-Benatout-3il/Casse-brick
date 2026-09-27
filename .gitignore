@@ -1,0 +1,28 @@
+# Unreal Engine - dossiers générés
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+
+# Rider / JetBrains
+.idea/
+*.sln.DotSettings.user
+
+# Visual Studio
+.vs/
+
+# Workspace Xcode généré
+*.xcworkspace/
+
+# Paramètres personnels Unreal Editor
+Config/DefaultEditorPerProjectUserSettings.ini
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Fichiers temporaires
+*.tmp
+*.temp
