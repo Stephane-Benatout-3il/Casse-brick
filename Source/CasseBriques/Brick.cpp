@@ -15,270 +15,289 @@
 // Sets default values
 ABrick::ABrick()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = false;
+    // Set this actor to call Tick() every frame.
+    // You can turn this off to improve performance if you don't need it.
+    PrimaryActorTick.bCanEverTick = false;
 
-	BrickMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BrickMesh"));
-	RootComponent = BrickMesh;
+    BrickMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BrickMesh"));
+    RootComponent = BrickMesh;
 
-	BrickMesh->SetCollisionProfileName(TEXT("BlockAllDynamic"));
+    BrickMesh->SetCollisionProfileName(TEXT("BlockAllDynamic"));
 
-	BrickMesh->SetNotifyRigidBodyCollision(true);
+    BrickMesh->SetNotifyRigidBodyCollision(true);
 
-	BrickMesh->OnComponentHit.AddDynamic(
-		this,
-		&ABrick::OnBrickHit
-	);
-
+    BrickMesh->OnComponentHit.AddDynamic(
+        this,
+        &ABrick::OnBrickHit
+    );
 }
 
 // Called when the game starts or when spawned
 void ABrick::BeginPlay()
 {
-	Super::BeginPlay();
-	CurrentHealth = MaxHealth;
-	UpdateBrickColor();
+    Super::BeginPlay();
+
+    CurrentHealth = MaxHealth;
+    UpdateBrickColor();
 }
 
 void ABrick::UpdateBrickColor()
 {
-	UMaterialInterface* NewMaterial = nullptr;
+    UMaterialInterface* NewMaterial = nullptr;
 
-	switch (CurrentHealth)
-	{
-	case 5:
-		NewMaterial = Material5HP;
-		break;
+    switch (CurrentHealth)
+    {
+    case 5:
+        NewMaterial = Material5HP;
+        break;
 
-	case 4:
-		NewMaterial = Material4HP;
-		break;
+    case 4:
+        NewMaterial = Material4HP;
+        break;
 
-	case 3:
-		NewMaterial = Material3HP;
-		break;
+    case 3:
+        NewMaterial = Material3HP;
+        break;
 
-	case 2:
-		NewMaterial = Material2HP;
-		break;
+    case 2:
+        NewMaterial = Material2HP;
+        break;
 
-	case 1:
-		NewMaterial = Material1HP;
-		break;
+    case 1:
+        NewMaterial = Material1HP;
+        break;
 
-	default:
-		return;
-	}
+    default:
+        return;
+    }
 
-	if (BrickMesh && NewMaterial)
-	{
-		BrickMesh->SetMaterial(0, NewMaterial);
-	}
+    if (BrickMesh && NewMaterial)
+    {
+        BrickMesh->SetMaterial(0, NewMaterial);
+    }
 }
 
 void ABrick::OnBrickHit(
-	UPrimitiveComponent* HitComponent,
-	AActor* OtherActor,
-	UPrimitiveComponent* OtherComp,
-	FVector NormalImpulse,
-	const FHitResult& Hit
+    UPrimitiveComponent* HitComponent,
+    AActor* OtherActor,
+    UPrimitiveComponent* OtherComp,
+    FVector NormalImpulse,
+    const FHitResult& Hit
 )
 {
-	// Vérifie si l'acteur qui frappe la brique est une balle explosive
-	ABall* Ball = Cast<ABall>(OtherActor);
+    // Vérifie si l'acteur qui frappe la brique est une balle explosive
+    ABall* Ball = Cast<ABall>(OtherActor);
 
-	if (Ball && Ball->IsExplosive())
-	{
-		ExplodeNearbyBricks();
-	}
-	
-	// La brique perd 1 PV
-	CurrentHealth--;
+    if (Ball && Ball->IsExplosive())
+    {
+        ExplodeNearbyBricks();
+    }
 
-	// Met à jour sa couleur en fonction des PV restants
-	UpdateBrickColor();
+    // La brique perd 1 PV
+    CurrentHealth--;
 
-	// Récupération du GameMode
-	ABreakoutGameMode* GameMode =
-		Cast<ABreakoutGameMode>(UGameplayStatics::GetGameMode(this));
+    // Met à jour sa couleur en fonction des PV restants
+    UpdateBrickColor();
 
-	// ---------- La brique a encore des PV ----------
-	if (CurrentHealth > 0)
-	{
-		// 50 points pour un impact
-		if (GameMode)
-		{
-			GameMode->AddScore(50);
-			GameMode->IncreaseCombo();
-		}
+    // Récupération du GameMode
+    ABreakoutGameMode* GameMode =
+        Cast<ABreakoutGameMode>(UGameplayStatics::GetGameMode(this));
 
-		return;
-	}
+    // ---------- La brique a encore des PV ----------
+    if (CurrentHealth > 0)
+    {
+        // 50 points pour un impact
+        if (GameMode)
+        {
+            GameMode->AddScore(50);
+            GameMode->IncreaseCombo();
+        }
 
-	// ---------- La brique est détruite ----------
+        // Son d'impact
+        if (HitSound)
+        {
+            UGameplayStatics::PlaySoundAtLocation(
+                this,
+                HitSound,
+                GetActorLocation()
+            );
+        }
 
-	// 100 points + retrait du compteur de briques
-	if (GameMode)
-	{
-		GameMode->AddScore(100);
-		GameMode->IncreaseCombo();
-		GameMode->BrickDestroyed();
-	}
+        return;
+    }
 
-	// Effet de particules
-	if (BrickExplosionEffect)
-	{
-		UNiagaraComponent* NiagaraComponent =
-			UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-				GetWorld(),
-				BrickExplosionEffect,
-				GetActorLocation(),
-				GetActorRotation()
-			);
+    // ---------- La brique est détruite ----------
 
-		if (NiagaraComponent)
-		{
-			NiagaraComponent->SetVariableLinearColor(
-				FName("User.BrickColor"),
-				BrickColor
-			);
-		}
-	}
-	
-	// ---------- Apparition éventuelle d'un Power-Up ----------
+    // 100 points + retrait du compteur de briques
+    if (GameMode)
+    {
+        GameMode->AddScore(100);
+        GameMode->IncreaseCombo();
+        GameMode->BrickDestroyed();
+    }
 
-	if (PowerUpClass && FMath::FRand() <= PowerUpSpawnChance)
-	{
-		GetWorld()->SpawnActor<APowerUp>(
-			PowerUpClass,
-			GetActorLocation(),
-			FRotator::ZeroRotator
-		);
-	}
+    // Son de destruction
+    if (DestroySound)
+    {
+        UGameplayStatics::PlaySoundAtLocation(
+            this,
+            DestroySound,
+            GetActorLocation()
+        );
+    }
 
-	// Destruction de l'acteur
-	Destroy();
+    // Effet de particules
+    if (BrickExplosionEffect)
+    {
+        UNiagaraComponent* NiagaraComponent =
+            UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+                GetWorld(),
+                BrickExplosionEffect,
+                GetActorLocation(),
+                GetActorRotation()
+            );
+
+        if (NiagaraComponent)
+        {
+            NiagaraComponent->SetVariableLinearColor(
+                FName("User.BrickColor"),
+                BrickColor
+            );
+        }
+    }
+
+    // ---------- Apparition éventuelle d'un Power-Up ----------
+    if (PowerUpClass && FMath::FRand() <= PowerUpSpawnChance)
+    {
+        GetWorld()->SpawnActor<APowerUp>(
+            PowerUpClass,
+            GetActorLocation(),
+            FRotator::ZeroRotator
+        );
+    }
+
+    // Destruction de l'acteur
+    Destroy();
 }
 
 // Called every frame
 void ABrick::Tick(float DeltaTime)
 {
-	Super::Tick(DeltaTime);
-
+    Super::Tick(DeltaTime);
 }
 
 void ABrick::SetHealth(int32 NewHealth)
 {
-	MaxHealth = FMath::Clamp(NewHealth, 1, 5);
-	CurrentHealth = MaxHealth;
+    MaxHealth = FMath::Clamp(NewHealth, 1, 5);
+    CurrentHealth = MaxHealth;
 
-	UpdateBrickColor();
+    UpdateBrickColor();
 }
 
 void ABrick::TakeExplosionDamage()
 {
-	// Évite de retraiter une brique déjà détruite
-	if (CurrentHealth <= 0)
-	{
-		return;
-	}
+    // Évite de retraiter une brique déjà détruite
+    if (CurrentHealth <= 0)
+    {
+        return;
+    }
 
-	CurrentHealth--;
+    CurrentHealth--;
 
-	// La brique survit : changement de couleur
-	if (CurrentHealth > 0)
-	{
-		UpdateBrickColor();
+    // La brique survit : changement de couleur
+    if (CurrentHealth > 0)
+    {
+        UpdateBrickColor();
 
-		// Même récompense qu'un impact normal
-		ABreakoutGameMode* GameMode =
-			Cast<ABreakoutGameMode>(
-				UGameplayStatics::GetGameMode(this)
-			);
+        // Même récompense qu'un impact normal
+        ABreakoutGameMode* GameMode =
+            Cast<ABreakoutGameMode>(
+                UGameplayStatics::GetGameMode(this)
+            );
 
-		if (GameMode)
-		{
-			GameMode->AddScore(50);
-		}
+        if (GameMode)
+        {
+            GameMode->AddScore(50);
+        }
 
-		return;
-	}
+        return;
+    }
 
-	// ---------- La brique est détruite par l'explosion ----------
+    // ---------- La brique est détruite par l'explosion ----------
 
-	ABreakoutGameMode* GameMode =
-		Cast<ABreakoutGameMode>(
-			UGameplayStatics::GetGameMode(this)
-		);
+    ABreakoutGameMode* GameMode =
+        Cast<ABreakoutGameMode>(
+            UGameplayStatics::GetGameMode(this)
+        );
 
-	if (GameMode)
-	{
-		GameMode->AddScore(100);
-		GameMode->BrickDestroyed();
-	}
+    if (GameMode)
+    {
+        GameMode->AddScore(100);
+        GameMode->BrickDestroyed();
+    }
 
-	// Son de destruction
-	if (DestroySound)
-	{
-		UGameplayStatics::PlaySoundAtLocation(
-			this,
-			DestroySound,
-			GetActorLocation()
-		);
-	}
+    // Son de destruction
+    if (DestroySound)
+    {
+        UGameplayStatics::PlaySoundAtLocation(
+            this,
+            DestroySound,
+            GetActorLocation()
+        );
+    }
 
-	// Particules de destruction
-	if (BrickExplosionEffect)
-	{
-		UNiagaraComponent* NiagaraComponent =
-			UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-				GetWorld(),
-				BrickExplosionEffect,
-				GetActorLocation(),
-				GetActorRotation()
-			);
+    // Particules de destruction
+    if (BrickExplosionEffect)
+    {
+        UNiagaraComponent* NiagaraComponent =
+            UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+                GetWorld(),
+                BrickExplosionEffect,
+                GetActorLocation(),
+                GetActorRotation()
+            );
 
-		if (NiagaraComponent)
-		{
-			NiagaraComponent->SetVariableLinearColor(
-				FName("User.BrickColor"),
-				BrickColor
-			);
-		}
-	}
+        if (NiagaraComponent)
+        {
+            NiagaraComponent->SetVariableLinearColor(
+                FName("User.BrickColor"),
+                BrickColor
+            );
+        }
+    }
 
-	Destroy();
+    Destroy();
 }
 
 void ABrick::ExplodeNearbyBricks()
 {
-	TArray<AActor*> Bricks;
+    TArray<AActor*> Bricks;
 
-	UGameplayStatics::GetAllActorsOfClass(
-		this,
-		ABrick::StaticClass(),
-		Bricks
-	);
+    UGameplayStatics::GetAllActorsOfClass(
+        this,
+        ABrick::StaticClass(),
+        Bricks
+    );
 
-	const FVector ExplosionLocation = GetActorLocation();
+    const FVector ExplosionLocation = GetActorLocation();
 
-	for (AActor* Actor : Bricks)
-	{
-		ABrick* NearbyBrick = Cast<ABrick>(Actor);
+    for (AActor* Actor : Bricks)
+    {
+        ABrick* NearbyBrick = Cast<ABrick>(Actor);
 
-		if (!NearbyBrick || NearbyBrick == this)
-		{
-			continue;
-		}
+        if (!NearbyBrick || NearbyBrick == this)
+        {
+            continue;
+        }
 
-		const float Distance = FVector::Dist(
-			ExplosionLocation,
-			NearbyBrick->GetActorLocation()
-		);
+        const float Distance = FVector::Dist(
+            ExplosionLocation,
+            NearbyBrick->GetActorLocation()
+        );
 
-		if (Distance <= ExplosionRadius)
-		{
-			NearbyBrick->TakeExplosionDamage();
-		}
-	}
+        if (Distance <= ExplosionRadius)
+        {
+            NearbyBrick->TakeExplosionDamage();
+        }
+    }
 }
