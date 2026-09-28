@@ -3,6 +3,8 @@
 #include "BreakoutGameMode.h"
 #include "BreakoutGameInstance.h"
 #include "GameFramework/PlayerController.h"
+#include "Ball.h"
+#include "Kismet/GameplayStatics.h"
 
 ABreakoutGameMode::ABreakoutGameMode()
 {
@@ -148,25 +150,75 @@ void ABreakoutGameMode::LevelComplete()
     }
 
     bIsLevelComplete = true;
-    
+
+    // ---------------------------------------------------------
+    // ARRÊT DES BALLES À LA FIN DU NIVEAU
+    // ---------------------------------------------------------
+
+    TArray<AActor*> Balls;
+
+    UGameplayStatics::GetAllActorsOfClass(
+        this,
+        ABall::StaticClass(),
+        Balls
+    );
+
+    for (AActor* Actor : Balls)
+    {
+        ABall* Ball = Cast<ABall>(Actor);
+
+        if (!Ball)
+        {
+            continue;
+        }
+
+        // Balle principale :
+        // arrêt et repositionnement sur la raquette
+        if (Ball->IsMainBall())
+        {
+            Ball->SetIsInPlay(false);
+            Ball->ResetBall();
+        }
+        else
+        {
+            // Les balles secondaires du multiball
+            // sont supprimées à la victoire
+            Ball->Destroy();
+        }
+    }
+
+    // ---------------------------------------------------------
+    // AFFICHAGE DU MENU DE VICTOIRE
+    // ---------------------------------------------------------
+
     if (LevelCompleteWidgetClass)
     {
         UUserWidget* LevelCompleteWidget =
-            CreateWidget<UUserWidget>(GetWorld(), LevelCompleteWidgetClass);
+            CreateWidget<UUserWidget>(
+                GetWorld(),
+                LevelCompleteWidgetClass
+            );
 
         if (LevelCompleteWidget)
         {
             LevelCompleteWidget->AddToViewport();
 
-            APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+            APlayerController* PlayerController =
+                GetWorld()->GetFirstPlayerController();
 
             if (PlayerController)
             {
                 PlayerController->bShowMouseCursor = true;
 
                 FInputModeUIOnly InputMode;
-                InputMode.SetWidgetToFocus(LevelCompleteWidget->TakeWidget());
-                InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+
+                InputMode.SetWidgetToFocus(
+                    LevelCompleteWidget->TakeWidget()
+                );
+
+                InputMode.SetLockMouseToViewportBehavior(
+                    EMouseLockMode::DoNotLock
+                );
 
                 PlayerController->SetInputMode(InputMode);
             }
