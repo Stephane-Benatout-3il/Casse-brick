@@ -16,14 +16,11 @@ La disposition des briques est générée aléatoirement à chaque nouvelle part
 
 ## 🕹️ Contrôles
 
-| Action | Touche |
-|---|---|
-| Clavier| 
-| Déplacer la raquette | Gauche / Droite | A/D | Q/D |
-| Lancer la balle | Espace |
-| Pause | Échap |
-
-(c'est compatible à la manette aussi)
+| Action | Touche Clavier | Manette |
+|---|---|---|
+| Déplacer la raquette | Gauche / Droite, A/D, Q/D | Gauche / Droite, Joystick Gauche|
+| Lancer la balle | Espace | A / X (suivant la configuration de la manette) |
+| Pause | Échap | Start |
 
 ## ✨ Fonctionnalités
 
